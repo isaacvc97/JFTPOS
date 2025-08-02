@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventario Farmacia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+  </style>
+  <style>
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .animate-fade-in {
+      animation: fade-in 0.25s ease-out;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+  <!-- MODAL -->
+  <div id="modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md text-center shadow-lg animate-fade-in">
+      <h2 class="text-xl font-semibold mb-2 text-gray-800">Producto guardado</h2>
+      <p class="text-gray-600 mb-4">El producto se ha ingresado correctamente.</p>
+      <button onclick="closeModal()"
+        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Aceptar</button>
+    </div>
+  </div>
+  <div class="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-md">
+    <h1 class="text-2xl font-semibold mb-6 text-center">Ingreso de Inventario por Voz</h1>
+
+    <!-- AVISO -->
+    <div id="aviso" class="text-red-600 mb-4 hidden">Texto demasiado corto. Intenta de nuevo.</div>
+
+    <!-- FORMULARIO -->
+    <div class="space-y-4">
+      <div>
+        <label class="block text-gray-700">Nombre</label>
+        <input id="nombre" type="text" class="w-full p-2 border rounded-md" readonly />
+      </div>
+      <div>
+        <label class="block text-gray-700">Presentación</label>
+        <input id="presentacion" type="text" class="w-full p-2 border rounded-md" readonly />
+      </div>
+      <div>
+        <label class="block text-gray-700">Laboratorio</label>
+        <input id="laboratorio" type="text" class="w-full p-2 border rounded-md" readonly />
+      </div>
+      <div>
+        <label class="block text-gray-700">Precio</label>
+        <input id="precio" type="number" step="0.01" class="w-full p-2 border rounded-md" readonly />
+      </div>
+      <div>
+        <label class="block text-gray-700">Cantidad</label>
+        <input id="cantidad" type="number" class="w-full p-2 border rounded-md" readonly />
+      </div>
+      <div>
+        <label class="block text-gray-700">Vencimiento</label>
+        <input type="date" id="vencimiento" class="w-full p-2 border rounded-md" />
+      </div>
+    </div>
+
+    <!-- BOTONES -->
+    <div class="flex flex-wrap gap-4 mt-6">
+      <button id="iniciarBtn" class="bg-blue-600 text-white px-4 py-2 rounded"
+        onclick="startListening()">Iniciar</button>
+      <button id="siguienteBtn" class="bg-green-600 text-white px-4 py-2 rounded hidden"
+        onclick="nextField()">Siguiente</button>
+      <button id="reintentarBtn" class="bg-yellow-500 text-white px-4 py-2 rounded hidden"
+        onclick="retryField()">Reintentar</button>
+      <button id="pausaBtn" class="bg-gray-600 text-white px-4 py-2 rounded hidden"
+        onclick="togglePause()">Pausar</button>
+      <button id="actualizarBtn" class="bg-purple-600 text-white px-4 py-2 rounded hidden"
+        onclick="saveProduct()">Actualizar</button>
+      <button id="reintentarBtn" class="bg-yellow-500 text-white px-4 py-2 rounded hidden"
+        onclick="retryField()">Reintentar</button>
+      <button id="omitirBtn" class="bg-gray-500 text-white px-4 py-2 rounded hidden"
+        onclick="skipField()">Omitir</button>
+
+    </div>
+
+    <hr class="my-6" />
+
+    <!-- TABLA -->
+    <div>
+      <h2 class="text-xl font-semibold mb-4">Productos Ingresados</h2>
+      <table class="w-full text-sm table-auto border-collapse">
+        <thead class="bg-gray-200">
+          <tr>
+            <th class="border px-2 py-1">Nombre</th>
+            <th class="border px-2 py-1">Presentación</th>
+            <th class="border px-2 py-1">Laboratorio</th>
+            <th class="border px-2 py-1">Precio</th>
+            <th class="border px-2 py-1">Cantidad</th>
+            <th class="border px-2 py-1">Vencimiento</th>
+            <th class="border px-2 py-1">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let currentFieldIndex = 0;
+    let isPaused = false;
+    let recognition;
+    let productos = JSON.parse(localStorage.getItem("productos")) || [];
+    let editingIndex = null;
+
+    const fields = ["nombre", "presentacion", "laboratorio", "precio", "cantidad", "vencimiento"];
+    const minLengthFields = ["nombre", "presentacion", "laboratorio"];
+
+    function showModal() {
+      document.getElementById("modal").classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.add("hidden");
+    }
+
+    function skipField() {
+      hideAviso();
+      document.getElementById(fields[currentFieldIndex]).value = "";
+      nextField();
+    }
+
+    function retryField() {
+      hideAviso();
+      startListening();
+    }
+
+
+    function updateTable() {
+      const tbody = document.getElementById("tabla-body");
+      tbody.innerHTML = "";
+      productos.forEach((p, index) => {
+        const row = document.createElement("tr");
+        for (let key of fields) {
+          const td = document.createElement("td");
+          td.className = "border px-2 py-1";
+          td.textContent = p[key];
+          row.appendChild(td);
+        }
+        const tdActions = document.createElement("td");
+        tdActions.className = "border px-2 py-1";
+        tdActions.innerHTML = `
+        <button class="bg-red-500 text-white px-2 py-1 rounded mr-1" onclick="deleteProduct(${index})">Eliminar</button>
+        <button class="bg-yellow-600 text-white px-2 py-1 rounded" onclick="editProduct(${index})">Editar</button>
+      `;
+        row.appendChild(tdActions);
+        tbody.appendChild(row);
+      });
+    }
+
+    function showAviso(message = "Texto demasiado corto. Intenta de nuevo.") {
+      const aviso = document.getElementById("aviso");
+      aviso.textContent = message;
+      aviso.classList.remove("hidden");
+      document.getElementById("reintentarBtn").classList.remove("hidden");
+    }
+
+    function hideAviso() {
+      document.getElementById("aviso").classList.add("hidden");
+      document.getElementById("reintentarBtn").classList.add("hidden");
+      document.getElementById("omitirBtn").classList.add("hidden");
+    }
+
+
+    function startListening() {
+      hideAviso();
+      document.getElementById("iniciarBtn").classList.add("hidden");
+      document.getElementById("siguienteBtn").classList.remove("hidden");
+      document.getElementById("pausaBtn").classList.remove("hidden");
+
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "es-ES";
+      recognition.start();
+
+      recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript.toLowerCase().trim();
+        const field = fields[currentFieldIndex];
+
+        let valid = true;
+
+        if (minLengthFields.includes(field) && text.length < 3) {
+          showAviso("Texto demasiado corto.");
+          valid = false;
+        } else if (field === "precio") {
+          const match = text.match(/(\d+[.,]?\d{0,2})/);
+          if (match) {
+            document.getElementById("precio").value = parseFloat(match[0].replace(",", "."));
+          } else {
+            showAviso("No se detectó un valor de precio válido.");
+            valid = false;
+          }
+        } else if (field === "cantidad") {
+          const match = text.match(/\d+/);
+          if (match) {
+            document.getElementById("cantidad").value = parseInt(match[0]);
+          } else {
+            showAviso("No se detectó un número de cantidad válido.");
+            valid = false;
+          }
+        } else if (field === "vencimiento") {
+          const match = text.match(/(\d{1,2})\s*(de(l)?|del)?\s*(\d{1,2})\s*(de(l)?|del)?\s*(\d{4})/);
+          if (match) {
+            const d = match[1].padStart(2, '0');
+            const m = match[4].padStart(2, '0');
+            const y = match[7];
+            const formatted = `${y}-${m}-${d}`;
+            document.getElementById("vencimiento").value = formatted;
+          } else {
+            showAviso("No se detectó una fecha válida.");
+            valid = false;
+          }
+        } else {
+          document.getElementById(field).value = text;
+        }
+
+        if (!valid) {
+          recognition.stop();
+          document.getElementById("reintentarBtn").classList.remove("hidden");
+          document.getElementById("omitirBtn").classList.remove("hidden");
+          return;
+        }
+
+        hideAviso();
+      };
+
+      recognition.onend = () => {
+        if (!isPaused) nextField();
+      };
+    }
+
+    function retryField() {
+      hideAviso();
+      startListening();
+    }
+
+    function nextField() {
+      if (currentFieldIndex < fields.length - 1) {
+        currentFieldIndex++;
+        if (fields[currentFieldIndex] !== "vencimiento") {
+          startListening();
+        }
+      } else {
+        saveProduct();
+      }
+    }
+
+    function togglePause() {
+      if (isPaused) {
+        recognition.start();
+        document.getElementById("pausaBtn").textContent = "Pausar";
+      } else {
+        recognition.stop();
+        document.getElementById("pausaBtn").textContent = "Reanudar";
+      }
+      isPaused = !isPaused;
+    }
+
+    function saveProduct() {
+      const producto = {};
+      for (let field of fields) {
+        producto[field] = document.getElementById(field).value;
+      }
+
+      if (editingIndex !== null) {
+        productos[editingIndex] = producto;
+        editingIndex = null;
+      } else {
+        productos.push(producto);
+      }
+
+      localStorage.setItem("productos", JSON.stringify(productos));
+      updateTable();
+      showModal(); // Mostrar modal
+      resetForm();
+    }
+    function resetForm() {
+      fields.forEach(f => {
+        document.getElementById(f).value = "";
+      });
+      currentFieldIndex = 0;
+      document.getElementById("iniciarBtn").classList.remove("hidden");
+      document.getElementById("siguienteBtn").classList.add("hidden");
+      document.getElementById("pausaBtn").classList.add("hidden");
+      document.getElementById("actualizarBtn").classList.add("hidden");
+      hideAviso();
+    }
+
+    function deleteProduct(index) {
+      productos.splice(index, 1);
+      localStorage.setItem("productos", JSON.stringify(productos));
+      updateTable();
+    }
+
+    function editProduct(index) {
+      const producto = productos[index];
+      fields.forEach(f => {
+        document.getElementById(f).value = producto[f];
+      });
+      editingIndex = index;
+      document.getElementById("iniciarBtn").classList.add("hidden");
+      document.getElementById("siguienteBtn").classList.add("hidden");
+      document.getElementById("pausaBtn").classList.add("hidden");
+      document.getElementById("actualizarBtn").classList.remove("hidden");
+    }
+
+    // Cargar tabla al inicio
+    updateTable();
+  </script>
+
+</body>
+
+</html>

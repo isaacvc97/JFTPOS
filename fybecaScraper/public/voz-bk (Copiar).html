@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inventario por Voz</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 2rem;
+      color: #111;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    tr:hover {
+      background-color: #f1f5f9;
+      cursor: pointer;
+    }
+
+    button {
+      background: #111;
+      color: white;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 4px;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    select {
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .phrase-box {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .phrase-item {
+      background: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+
+    .modal-content table {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛒 Registro de Producto por Voz</h1>
+
+  <div>
+    <button onclick="startListening()">🎤 Iniciar</button>
+    <button onclick="stopListening()">🛑 Detener</button>
+    <button onclick="processInput()">✅ Procesar</button>
+    <button onclick="openHistoryModal()">📁 Ver Registros</button>
+  </div>
+
+  <div class="phrase-box" id="phraseBox"></div>
+
+  <table id="productTable">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Presentación</th>
+        <th>Laboratorio</th>
+        <th>Stock</th>
+        <th>Precio</th>
+        <th>Vencimiento</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Modal para historial -->
+  <div class="modal" id="historyModal" style="display:none">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>📅 Registros Guardados</span>
+        <button onclick="closeHistoryModal()">✖</button>
+      </div>
+      <div id="historyContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const fieldKeywords = ['nombre', 'presentación', 'laboratorio', 'stock', 'precio', 'vencimiento'];
+    const fieldMap = {
+      'nombre': 'nombre',
+      'presentación': 'presentacion',
+      'laboratorio': 'laboratorio',
+      'stock': 'stock',
+      'precio': 'precio',
+      'vencimiento': 'vencimiento',
+    };
+
+    const phrases = [];
+    let recognition;
+    let listening = false;
+
+    const products = JSON.parse(localStorage.getItem("productos_voz_actual") || "[]");
+    renderTable();
+
+    function startListening() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Tu navegador no soporta reconocimiento de voz");
+        return;
+      }
+
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = 'es-ES';
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        parseSpeech(transcript);
+      };
+
+      recognition.onerror = (e) => console.error(e);
+
+      recognition.start();
+      listening = true;
+    }
+
+    function stopListening() {
+      if (recognition && listening) {
+        recognition.stop();
+        listening = false;
+      }
+    }
+
+    function parseSpeech(text) {
+      const tokens = text.split(" ");
+      const result = [];
+      let currentField = null;
+
+      tokens.forEach(word => {
+        if (fieldKeywords.includes(word)) {
+          currentField = fieldMap[word];
+          result.push({ text: word, field: 'clave' });
+        } else if (currentField) {
+          result.push({ text: word, field: currentField });
+        } else {
+          result.push({ text: word, field: '' });
+        }
+      });
+
+      phrases.length = 0;
+      phrases.push(...result);
+      renderPhraseBox();
+    }
+
+    function renderPhraseBox() {
+      const box = document.getElementById("phraseBox");
+      box.innerHTML = "";
+
+      let index = 0;
+      while (index < phrases.length) {
+        const item = phrases[index];
+        if (item.field === 'clave') {
+          index++;
+          let value = '';
+          let field = '';
+          while (index < phrases.length && phrases[index].field !== 'clave') {
+            if (!field) field = phrases[index].field;
+            value += phrases[index].text + ' ';
+            index++;
+          }
+          if (field) {
+            box.innerHTML += `
+              <div class="phrase-item">
+                <select>
+                  ${Object.values(fieldMap).map(f =>
+                    `<option value="${f}" ${f === field ? 'selected' : ''}>${f}</option>`
+                  ).join('')}
+                </select>
+                <span>${value.trim()}</span>
+              </div>`;
+          }
+        } else {
+          index++;
+        }
+      }
+    }
+
+    function processInput() {
+      const box = document.getElementById("phraseBox");
+      const selects = box.querySelectorAll("select");
+      const values = box.querySelectorAll("span");
+
+      const product = {};
+      selects.forEach((sel, i) => {
+        product[sel.value] = values[i].innerText.trim();
+      });
+
+      products.push(product);
+      saveToLocalStorage();
+      renderTable();
+      document.getElementById("phraseBox").innerHTML = "";
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#productTable tbody");
+      tbody.innerHTML = "";
+
+      products.forEach((prod, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${prod.nombre || ''}</td>
+          <td>${prod.presentacion || ''}</td>
+          <td>${prod.laboratorio || ''}</td>
+          <td>${prod.stock || ''}</td>
+          <td>${prod.precio || ''}</td>
+          <td>${prod.vencimiento || ''}</td>
+        `;
+
+        row.onclick = () => {
+          if (confirm("¿Deseas eliminar este producto?")) {
+            products.splice(index, 1);
+            saveToLocalStorage();
+            renderTable();
+          }
+        };
+
+        tbody.appendChild(row);
+      });
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem("productos_voz_actual", JSON.stringify(products));
+      const key = "productos_guardados_" + new Date().toISOString().split("T")[0];
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      localStorage.setItem(key, JSON.stringify([...existing, ...products]));
+    }
+
+    function openHistoryModal() {
+      const content = document.getElementById("historyContent");
+      content.innerHTML = "";
+
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("productos_guardados_")) {
+          const date = key.replace("productos_guardados_", "");
+          content.innerHTML += `
+            <div style="margin-bottom:1rem">
+              <strong>${date}</strong>
+              <button onclick="loadSaved('${key}')">📤 Cargar</button>
+              <button onclick="deleteSaved('${key}')">🗑️ Borrar</button>
+            </div>
+          `;
+        }
+      });
+
+      document.getElementById("historyModal").style.display = "flex";
+    }
+
+    function closeHistoryModal() {
+      document.getElementById("historyModal").style.display = "none";
+    }
+
+    function loadSaved(key) {
+      const data = JSON.parse(localStorage.getItem(key));
+      if (Array.isArray(data)) {
+        products.length = 0;
+        products.push(...data);
+        renderTable();
+        saveToLocalStorage();
+        closeHistoryModal();
+      }
+    }
+
+    function deleteSaved(key) {
+      if (confirm("¿Eliminar este registro?")) {
+        localStorage.removeItem(key);
+        openHistoryModal();
+      }
+    }
+  </script>
+</body>
+</html>
+

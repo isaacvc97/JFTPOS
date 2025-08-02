@@ -1,0 +1,144 @@
+services:
+  laravel:
+    build: ./Vanced
+    container_name: laravel
+    ports:
+      - "8001:8000"   # Laravel
+    volumes:
+      - ./Vanced:/var/www
+    depends_on:
+      - mysql
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    restart: always
+    networks:
+      - laravel
+  vite:
+    build: ./Vanced
+    ports:
+      - "5173:5173"   # Vite frontend
+    volumes:
+      - ./Vanced:/var/www
+    working_dir: /var/www
+    command: sh -c "npm install && npm run dev -- --host"
+    restart: always
+    networks:
+      - laravel
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel12
+      MYSQL_USER: laraveluser
+      MYSQL_PASSWORD: secret
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always
+    networks:
+      - laravel
+  whatsapp:
+    build: ./whatsappService
+    volumes:
+    - ./whatsappService:/app
+    - ./tokens:/app/tokens
+    - /app/node_modules  # Evita conflictos con los de host
+    - ./data:/app/data   # Volumen para mantener la sesión de Venom
+    ports:
+      - "8002:8001"
+    command: npx nodemon index.js
+    restart: always
+    environment:
+      - NODE_ENV=development
+    networks:
+      - laravel
+  puppeteer:
+    build: ./fybecaScraper
+    volumes:
+      - ./fybecaScraper:/app
+      - /app/node_modules
+    ports:
+      - "8003:8002"
+    command: npx nodemon server.js
+    restart: always
+    environment:
+      - NODE_ENV=development
+    networks:
+      - laravel
+  assistant:
+    build: 
+      context: ./assistant
+      dockerfile: Dockerfile
+    container_name: assistant
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./assistant:/app
+    restart: always
+
+  rasa:
+    build:
+      context: ./rasa-assistant
+      dockerfile: Dockerfile
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./rasa-assistant:/app
+    working_dir: /app
+    # command:
+    #   - run
+    #   - --enable-api
+    #   - --cors
+    #   - "*"
+    depends_on:
+      - action-server
+    restart: always
+
+  action-server:
+    build:
+      context: ./rasa-assistant
+      dockerfile: Dockerfile.actions
+    volumes:
+      - ./rasa-assistant/actions:/app/actions
+    ports:
+      - "5055:5055"
+    restart: always
+
+  nlp-bot:
+    build:
+      context: ./nlp-bot
+      dockerfile: Dockerfile
+    container_name: nlpbot
+    volumes:
+      - ./nlp-bot:/app
+      - /app/node_modules  # Evita conflictos con los de host
+    ports:
+      - "8009:8009"
+    restart: always
+
+  stt-tts-service:
+    build:
+      context: ./stt-tts-service
+      dockerfile: Dockerfile
+    container_name: stt-tts-service
+    volumes:
+      - ./stt-tts-service:/app/uploads
+    ports:
+      - "8010:8010"
+    restart: always
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"  # Exponer API a FastAPI y otros
+    volumes:
+      - ollama_data:/root/.ollama  # Persistencia de modelos descargados
+    restart: unless-stopped
+  
+volumes:
+  mysql_data:
+  ollama_data:
+
+networks:
+  laravel:
+    driver: bridge

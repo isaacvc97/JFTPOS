@@ -1,0 +1,14 @@
+.git
+tokens
+data
+launch_vancedpos.sh
+*.txt
+*.sql
+
+/tts
+/Vanced-BK
+/assistant
+/rasa-assistant
+/nlp-bot
+/stt-tts-service
+/ollama

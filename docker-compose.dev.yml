@@ -1,0 +1,76 @@
+# docker-compose.dev.yml
+services:
+  laravel:
+    build: ./Vanced
+    container_name: laravel
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./Vanced:/var/www
+    depends_on:
+      - mysql
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    restart: always
+    networks:
+      - laravel
+  vite:
+    build: ./Vanced
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Vanced:/var/www
+    working_dir: /var/www
+    command: sh -c "npm install && npm run dev -- --host"
+    restart: always
+    networks:
+      - laravel
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel12
+      MYSQL_USER: laraveluser
+      MYSQL_PASSWORD: secret
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always
+    networks:
+      - laravel
+  whatsapp:
+    build: ./whatsappService
+    volumes:
+    - ./whatsappService:/app
+    - ./tokens:/app/tokens
+    - /app/node_modules
+    - ./data:/app/data
+    ports:
+      - "8002:8001"
+    command: npx nodemon index.js
+    restart: always
+    environment:
+      - NODE_ENV=development
+    networks:
+      - laravel
+  puppeteer:
+    build: ./fybecaScraper
+    volumes:
+      - ./fybecaScraper:/app
+      - /app/node_modules
+    ports:
+      - "8003:8002"
+    command: npx nodemon server.js
+    restart: always
+    environment:
+      - NODE_ENV=development
+    networks:
+      - laravel
+
+volumes:
+  mysql_data:
+
+networks:
+  laravel:
+    driver: bridge

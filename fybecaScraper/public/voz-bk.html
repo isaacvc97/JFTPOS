@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Inventario por Voz</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background: #f9f9f9;
+    }
+
+    h1 {
+      font-size: 20px;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      background: #222;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    table {
+      margin-top: 1rem;
+      border-collapse: collapse;
+      width: 100%;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    tr:hover {
+      background: #f1f1f1;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-content button {
+      margin: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Inventario por Voz</h1>
+
+  <button onclick="addProduct()">➕ Agregar Producto</button>
+  <button onclick="openHistoryModal()">📁 Ver Historial</button>
+
+  <table id="productTable">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Presentación</th>
+        <th>Laboratorio</th>
+        <th>Stock</th>
+        <th>Precio</th>
+        <th>Vencimiento</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Modal -->
+  <div class="modal" id="historyModal" style="display: none;">
+    <div class="modal-content">
+      <h3>📅 Registros guardados</h3>
+      <div id="historyContent"></div>
+      <button onclick="closeHistoryModal()">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    const products = JSON.parse(localStorage.getItem("productos_voz_actual") || "[]");
+
+    function addProduct() {
+      const producto = {
+        nombre: prompt("Nombre del producto:"),
+        presentacion: prompt("Presentación:"),
+        laboratorio: prompt("Laboratorio:"),
+        stock: prompt("Stock:"),
+        precio: prompt("Precio:"),
+        vencimiento: prompt("Fecha de vencimiento:")
+      };
+
+      if (!producto.nombre) return alert("Producto no válido.");
+
+      products.push(producto);
+      saveToLocalStorage();
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#productTable tbody");
+      tbody.innerHTML = "";
+      products.forEach((prod, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${prod.nombre}</td>
+          <td>${prod.presentacion}</td>
+          <td>${prod.laboratorio}</td>
+          <td>${prod.stock}</td>
+          <td>${prod.precio}</td>
+          <td>${prod.vencimiento}</td>
+        `;
+        row.onclick = () => {
+          if (confirm("¿Eliminar este producto?")) {
+            products.splice(index, 1);
+            saveToLocalStorage();
+            renderTable();
+          }
+        };
+        tbody.appendChild(row);
+      });
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem("productos_voz_actual", JSON.stringify(products));
+      const fecha = new Date().toISOString().split("T")[0];
+      const key = `productos_guardados_${fecha}`;
+      localStorage.setItem(key, JSON.stringify(products));
+    }
+
+    function openHistoryModal() {
+      const modal = document.getElementById("historyModal");
+      const content = document.getElementById("historyContent");
+      content.innerHTML = "";
+
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("productos_guardados_")) {
+          const fecha = key.replace("productos_guardados_", "");
+          content.innerHTML += `
+            <div>
+              <strong>${fecha}</strong>
+              <button onclick="cargarGuardado('${key}')">📤 Cargar</button>
+              <button onclick="borrarGuardado('${key}')">🗑️ Borrar</button>
+            </div>
+          `;
+        }
+      });
+
+      modal.style.display = "flex";
+    }
+
+    function closeHistoryModal() {
+      document.getElementById("historyModal").style.display = "none";
+    }
+
+    function cargarGuardado(key) {
+      const data = JSON.parse(localStorage.getItem(key));
+      if (!Array.isArray(data)) return;
+
+      products.length = 0;
+      products.push(...data);
+      saveToLocalStorage();
+      renderTable();
+      closeHistoryModal();
+    }
+
+    function borrarGuardado(key) {
+      if (confirm("¿Seguro que deseas borrar este registro?")) {
+        localStorage.removeItem(key);
+        openHistoryModal();
+      }
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>
+
