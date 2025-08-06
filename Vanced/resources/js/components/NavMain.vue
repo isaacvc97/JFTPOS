@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { reactive } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
 import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { NIcon, NDropdown } from 'naive-ui';
-import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronsUpDownIcon } from 'lucide-vue-next';
-import { reactive } from 'vue';
 import { detectMobile } from '@/composables/useBreakpoint';
 
 const props = defineProps<{

@@ -28,7 +28,7 @@ const theme = computed(() => {
 <template>
   <SessionHandler />
   <n-config-provider :theme="theme">
-    <n-message-provider placement="bottom-left" :duration="5000">
+    <n-message-provider placement="top-left" :duration="5000">
       <n-dialog-provider>
         <AppLayout :breadcrumbs="breadcrumbs">
           <slot />
