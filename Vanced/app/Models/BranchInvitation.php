@@ -10,4 +10,8 @@ class BranchInvitation extends Model {
     public function branch() {
         return $this->belongsTo(Branch::class);
     }
+
+    public function enviadoPor() {
+        return $this->belongsTo(User::class, 'enviado_por');
+    }
 }

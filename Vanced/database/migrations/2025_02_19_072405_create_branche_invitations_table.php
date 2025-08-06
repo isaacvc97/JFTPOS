@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up(): void
     {
         // === MIGRACIÓN INVITACIONES ===
-        Schema::create('branch_invitations', function (Blueprint $table) {
+       Schema::create('branch_invitations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('branch_id')->constrained()->onDelete('cascade');
             $table->string('email');

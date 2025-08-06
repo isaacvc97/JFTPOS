@@ -11,50 +11,75 @@ use App\Notifications\BranchInvitationNotification;
 class InvitationController extends Controller {
     public function store(Request $request) {
         $token = Str::uuid();
+
         BranchInvitation::create([
-            'branch_id' => $request->branch_id,
+            'branch_id' => auth()->user()->branch_id,
             'email' => $request->email,
             'token' => $token,
             'enviado_por' => auth()->id()
         ]);
 
-        Notification::route('mail', $request->email)->notify(new BranchInvitationNotification($token));
+        Notification::route('mail', $request->email)
+            ->notify(new BranchInvitationNotification($token));
 
-        return response()->json(['status' => 'enviado']);
+        return back();
     }
 
     public function accept($token) {
-        $invitacion = BranchInvitation::where('token', $token)->firstOrFail();
-        $invitacion->estado = 'aceptada';
-        $invitacion->save();
+        $inv = BranchInvitation::where('token', $token)->firstOrFail();
 
-        auth()->user()->branches()->attach($invitacion->branch_id, ['role' => 'vendedor']);
+        if (!auth()->check()) {
+            session(['invitation_token' => $token]);
+            return redirect()->route('login');
+        }
+
+        $user = auth()->user();
+
+        // Si ya tiene una sucursal, eliminarla
+        if ($user->branch_id) {
+            $user->branch()->delete();
+        }
+
+        $inv->estado = 'aceptada';
+        $inv->save();
+
+        // $user->update([
+        //     'branch_id' => $inv->branch_id,
+        //     'role' => 'vendedor'
+        // ]);
+
+        $user->branch_id = $inv->branch_id;
+        $user->role = 'vendedor';
+        $user->save();
+
         return redirect('/dashboard');
     }
 
-    public function rechazar($token) {
+    public function accept0($token) {
         $inv = BranchInvitation::where('token', $token)->firstOrFail();
-        $inv->estado = 'rechazada';
+
+        if (!auth()->check()) {
+            session(['invitation_token' => $token]);
+            return redirect()->route('login');
+        }
+
+        $inv->estado = 'aceptada';
         $inv->save();
-        return response()->json(['status' => 'rechazada']);
+
+        auth()->user()->update([
+            'branch_id' => $inv->branch_id,
+            'role' => 'vendedor'
+        ]);
+
+        return redirect('/dashboard');
     }
 
-    public function destroy($id) {
-        BranchInvitation::where('id', $id)->delete();
-        return response()->json(['ok' => true]);
+    public function reject($token) {
+        $inv = BranchInvitation::where('token', $token)->firstOrFail();
+        if (auth()->check() && auth()->user()->email === $inv->email) {
+            $inv->update(['estado' => 'rechazada']);
+        }
+        return back();
     }
+
 }
-// class BranchInvitationNotification extends Notification implements ShouldQueue {
-//     public function __construct(public string $token) {}
-
-//     public function via($notifiable) {
-//         return ['mail'];
-//     }
-
-//     public function toMail($notifiable) {
-//         return (new MailMessage)
-//             ->subject('Invitación a sucursal')
-//             ->line('Has sido invitado a una sucursal.')
-//             ->action('Aceptar invitación', url('/invitaciones/aceptar/' . $this->token));
-//     }
-// }

@@ -1,152 +1,209 @@
 <template>
   <AppLayout>
-    <n-card title="Mis sucursales" class="p-4">
-      <n-space justify="space-between" align="center">
-        <n-button @click="showModal = true" type="primary">+ Crear sucursal</n-button>
-      </n-space>
+    <div class="p-4 space-y-6">
+      <n-card title="Sucursal">
+        <n-descriptions bordered label-placement="top">
+          <n-descriptions-item label="Nombre">{{ branch.nombre }}</n-descriptions-item>
+          <n-descriptions-item label="RUC">{{ branch.ruc }}</n-descriptions-item>
+          <n-descriptions-item label="Teléfono">{{
+            branch.telefono || "—"
+          }}</n-descriptions-item>
+          <n-descriptions-item label="Dirección">{{
+            branch.direccion || "—"
+          }}</n-descriptions-item>
+        </n-descriptions>
+      </n-card>
 
-      <n-list class="mt-4">
-        <n-list-item v-for="branch in branches" :key="branch.id" :show-divider="true">
-          <n-thing :title="branch.nombre" :description="branch.ruc">
-            <template #header-extra>
-              <n-tag @click="router.get(route('branch.show', branch.id))">{{
-                branch.direccion
-              }}</n-tag>
-              <n-button size="small" @click="openInvite(branch)">Invitar</n-button>
-            </template>
-          </n-thing>
-        </n-list-item>
-      </n-list>
+      <n-card title="Sucursal">
+        <n-form :model="form" label-placement="top" ref="formRef">
+          <n-form-item label="Nombre">
+            <n-input v-model:value="form.nombre" />
+          </n-form-item>
 
-      <n-modal v-model:show="showModal">
-        <n-card title="Nueva Sucursal" closable @close="showModal = false">
-          <n-form :model="form">
-            <n-form-item label="Nombre"
-              ><n-input v-model:value="form.nombre"
-            /></n-form-item>
-            <n-form-item label="RUC"><n-input v-model:value="form.ruc" /></n-form-item>
-            <n-form-item label="Teléfono"
-              ><n-input v-model:value="form.telefono"
-            /></n-form-item>
-            <n-form-item label="Dirección"
-              ><n-input v-model:value="form.direccion"
-            /></n-form-item>
-          </n-form>
-          <template #footer>
-            <n-space justify="end">
-              <n-button @click="crearSucursal" type="primary">Guardar</n-button>
-            </n-space>
-          </template>
-        </n-card>
-      </n-modal>
+          <n-form-item label="RUC">
+            <n-input v-model:value="form.ruc" />
+          </n-form-item>
 
-      <n-modal v-model:show="showInvite">
-        <n-card title="Invitar usuario a {{ selectedBranch?.nombre }}">
-          <n-input v-model:value="inviteEmail" placeholder="Correo electrónico" />
-          <n-select v-model:value="inviteRole" :options="roleOptions" class="mt-2" />
-          <template #footer>
-            <n-space justify="end">
-              <n-button type="primary" @click="enviarInvitacion">Enviar</n-button>
-            </n-space>
-          </template>
-        </n-card>
-      </n-modal>
-    </n-card>
-    <Inbox></Inbox>
+          <n-form-item label="Teléfono">
+            <n-input v-model:value="form.telefono" />
+          </n-form-item>
+
+          <n-form-item label="Dirección">
+            <n-input v-model:value="form.direccion" />
+          </n-form-item>
+
+          <n-button type="primary" @click="guardarCambios">Guardar cambios</n-button>
+        </n-form>
+      </n-card>
+
+      <n-card title="Usuarios en la sucursal">
+        <n-table :bordered="false" :single-line="false">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.id">
+              <td>{{ user.name }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <n-select
+                  v-if="canEditRole(user)"
+                  :value="user.role"
+                  :options="roleOptions"
+                  size="small"
+                  @update:value="(val) => cambiarRol(user.id, val)"
+                />
+                <span v-else>{{ user.role }}</span>
+              </td>
+              <td>
+                <n-popconfirm
+                  @positive-click="quitarUsuario(user.id)"
+                  :disabled="!canRemove(user)"
+                >
+                  <template #trigger>
+                    <n-button size="small" type="error" :disabled="!canRemove(user)"
+                      >Quitar</n-button
+                    >
+                  </template>
+                  ¿Deseas quitar este usuario de la sucursal?
+                </n-popconfirm>
+              </td>
+            </tr>
+          </tbody>
+        </n-table>
+      </n-card>
+
+      <n-card title="Invitaciones enviadas">
+        <n-table :bordered="false" :single-line="false">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Estado</th>
+              <th>Enviado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in invitaciones" :key="inv.id">
+              <td>{{ inv.email }}</td>
+              <td>
+                <n-tag :type="statusType(inv.estado)">{{ inv.estado }}</n-tag>
+              </td>
+              <td>{{ new Date(inv.created_at).toLocaleDateString() }}</td>
+              <td>
+                <n-button
+                  v-if="inv.estado === 'pendiente'"
+                  type="error"
+                  size="small"
+                  @click="cancelarInvitacion(inv.id)"
+                  >Cancelar</n-button
+                >
+              </td>
+            </tr>
+          </tbody>
+        </n-table>
+
+        <div class="mt-4">
+          <n-input-group>
+            <n-input
+              v-model:value="email"
+              placeholder="Correo electrónico para invitar"
+            />
+            <n-button type="primary" @click="enviarInvitacion" :disabled="!email"
+              >Enviar</n-button
+            >
+          </n-input-group>
+        </div>
+      </n-card>
+    </div>
+    <Inbox />
   </AppLayout>
 </template>
 
 <script setup>
 import axios from "axios";
-import { router } from "@inertiajs/vue3";
 import { ref } from "vue";
+import { usePage, router } from "@inertiajs/vue3";
 import {
   NCard,
-  NModal,
-  NInput,
-  NSelect,
+  NTable,
+  NTag,
   NButton,
-  NList,
-  NListItem,
+  NInputGroup,
+  NInput,
   NForm,
   NFormItem,
-  NTag,
-  NThing,
-  NSpace,
+  NDescriptions,
+  NDescriptionsItem,
+  NSelect,
+  NPopconfirm,
 } from "naive-ui";
-import { useMessageGlobal } from "@/composables/useMessageGlobal";
 import AppLayout from "@/layouts/AppLayout.vue";
 import Inbox from "../Inbox.vue";
 
-// interface Branch {
-//   id: number;
-//   nombre: string;
-//   direccion: string;
-//   usuarios: number;
-//   telefono: string;
-//   email: string;
-// }
-
-// interface Props {
-//   branches: any[]
-// }
-// defineProps<Props>();
-
-defineProps({
-  branches: Object,
+const props = defineProps({
+  branch: Object,
+  users: Array,
+  invitaciones: Array,
+  role: String,
 });
 
-const showModal = ref(false);
-const showInvite = ref(false);
-const inviteEmail = ref("");
-const inviteRole = ref("vendedor");
-const selectedBranch = ref(null);
-// const branches = ref([]);
-const form = ref({ nombre: "", ruc: "", telefono: "", direccion: "" });
-const message = useMessageGlobal();
+const page = usePage();
+const email = ref("");
+const form = ref({ ...props.branch });
+const formRef = ref(null);
 
 const roleOptions = [
   { label: "Administrador", value: "administrador" },
   { label: "Vendedor", value: "vendedor" },
 ];
 
-function getBranches() {
-  router.reload({ only: ["branches"] });
-  // axios.get("/branches").then((res) => (branches.value = res.data));
+function statusType(estado) {
+  return (
+    {
+      pendiente: "warning",
+      aceptada: "success",
+      rechazada: "error",
+    }[estado] || "default"
+  );
 }
 
-function crearSucursal() {
-  axios.post("/branches", form.value).then(() => {
-    message.success("Sucursal creada");
-    showModal.value = false;
-    getBranches();
-  });
-}
-
-function openInvite(branch) {
-  selectedBranch.value = branch;
-  showInvite.value = true;
+function guardarCambios() {
+  router.put("/branches/" + form.value.id, form.value);
 }
 
 function enviarInvitacion() {
-  axios
-    .post("/invitations", {
-      branch_id: selectedBranch.value.id,
-      email: inviteEmail.value,
-      role: inviteRole.value,
-    })
-    .then(() => {
-      message.success("Invitación enviada");
-      showInvite.value = false;
-      inviteEmail.value = "";
-    });
+  router.post(
+    "/invitations",
+    { email: email.value },
+    {
+      onSuccess: () => (email.value = ""),
+    }
+  );
 }
 
-// onMounted(() => getBranches());
+function cancelarInvitacion(id) {
+  axios.delete(`/invitations/${id}`);
+}
+
+function cambiarRol(userId, role) {
+  router.post(`/branches/${userId}/roles`, { role });
+}
+
+function quitarUsuario(userId) {
+  router.delete(`/branches/users/${userId}`);
+}
+
+function canEditRole(user) {
+  return page.props.auth.user.id !== user.id && props.role === "administrador";
+}
+
+function canRemove(user) {
+  return page.props.auth.user.id !== user.id && props.role === "administrador";
+}
 </script>
-
-<style scoped>
-.mt-4 {
-  margin-top: 1rem;
-}
-</style>

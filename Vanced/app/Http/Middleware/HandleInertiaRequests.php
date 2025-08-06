@@ -47,7 +47,9 @@ class HandleInertiaRequests extends Middleware
             //     'message' => fn () => $request->session()->get('message')
             // ],
             // 'quote' => ['message' => trim($message), 'author' => trim($author)],
-            'auth.user' => auth()->user()?->load(['notifications','invitacionesRecibidas']),
+            'auth.user' => fn () => auth()->check()
+                ? auth()->user()->load(['branch', 'notifications'])
+                : null,
             'ziggy' => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

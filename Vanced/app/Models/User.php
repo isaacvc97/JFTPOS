@@ -47,8 +47,8 @@ class User extends Authenticatable
         ];
     }
 
-    public function branches() {
-        return $this->belongsToMany(Branch::class)->withPivot('role');
+    public function branch() {
+        return $this->belongsTo(Branch::class);
     }
 
     public function invitacionesRecibidas() {

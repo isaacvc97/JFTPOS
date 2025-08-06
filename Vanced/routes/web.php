@@ -1,11 +1,8 @@
 <?php
 
-use App\Http\Controllers\InvitationController;
 use Inertia\Inertia;
-use App\Models\MedicineForm;
-use App\Models\MedicinePresentation;
+use App\Http\Controllers\InvitationController;
 use Illuminate\Support\Facades\Route;
-use Symfony\Component\Process\Process;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\UserController;
@@ -15,7 +12,6 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\MedicineController;
 use App\Http\Controllers\PurchaseController;
-use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\CartSalesController;
 use App\Http\Controllers\LaboratoryController;
 use App\Http\Controllers\CartPurchaseController;
@@ -214,8 +210,9 @@ Route::middleware(['auth','verified',])->group(function () {
         Route::get('/', 'index');
         Route::get('/{id}', 'show')->name('show');
         Route::post('/', 'store');
+        Route::put('/{branch}', 'update');
         
-        Route::post('/{id}/roles', 'cambiarRol');
+        Route::post('/{user}/roles', 'cambiarRol')/* ->name('rol') */;
         Route::delete('/{branchId}/users/{userId}', 'quitarUsuario');
     });
 
@@ -224,15 +221,26 @@ Route::middleware(['auth','verified',])->group(function () {
         
         Route::get('/', 'index');
         Route::post('/', 'store');
-        Route::post('/aceptar/{token}', 'accept');
-        Route::post('/rechazar/{token}', 'rechazar');
+        Route::get('/accept/{token}', 'accept');
+        Route::get('/reject/{token}', 'reject');
         Route::delete('/{id}', function ($id) {
-                dd(auth()->user()->notifications()->where('id', $id)->delete());
-                return response()->json(['ok' => true]);
-            });
+
+            DB::table('branch_invitations')->where('id', $id)->delete();
+
+            return response()->json([
+                'type' => 'error',
+                'message' =>  'Se elimino invitacion.'
+            ], 200);
+        });
         // Route::delete('/invitations/{id}', [InvitationController::class, 'destroy']);
         
     });
+
+    Route::delete('/notificaciones/{id}', function ($id) {
+        auth()->user()->notifications()->where('id', $id)->delete();
+        return response()->json(['ok' => true]);
+    });
+
 
     Route::name('clients.')->prefix('clients')->controller(ClientController::class)->group(function () {
         Route::get('/', 'index')

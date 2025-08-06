@@ -11,7 +11,7 @@ return new class extends Migration {
         Schema::create('branches', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
-            $table->string('ruc')->nullable();
+            $table->string('ruc');
             $table->string('telefono')->nullable();
             $table->string('direccion')->nullable();
             $table->foreignId('owner_id')->constrained('users')->onDelete('cascade');

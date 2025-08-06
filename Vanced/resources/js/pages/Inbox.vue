@@ -1,64 +1,54 @@
 <template>
-  <n-card title="Notificaciones" class="p-4">
-    <n-list>
-      <n-list-item v-for="n in notifications" :key="n.id">
-        <n-thing>
-          <template #header>
-            {{ formatTipo(n.data?.tipo) }}
-          </template>
+  <div class="p-4">
+    <n-card title="Bandeja de notificaciones">
+      <n-empty v-if="!notificaciones.length" description="No hay notificaciones" />
 
-          <template #description>
-            <n-text depth="3">{{ n.data?.mensaje }}</n-text>
+      <n-list v-else bordered>
+        <n-list-item v-for="noti in notificaciones" :key="noti.id">
+          <template #default>
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="font-semibold">{{ noti.data.mensaje }}</div>
+                <div class="text-xs text-gray-500">
+                  {{ formatFecha(noti.created_at) }}
+                </div>
+              </div>
+              <div v-if="noti.data.tipo === 'invitacion'">
+                <n-button size="small" type="primary" @click="aceptar(noti.data.token)"
+                  >Aceptar</n-button
+                >
+                <n-button
+                  size="small"
+                  type="error"
+                  class="ml-2"
+                  @click="rechazar(noti.data.token)"
+                  >Rechazar</n-button
+                >
+              </div>
+            </div>
           </template>
-
-          <template #header-extra>
-            <n-space>
-              <n-button v-if="n.data?.url" size="tiny" @click="visitar(n.data.url)"
-                >Ver</n-button
-              >
-              <n-button size="tiny" type="error" @click="borrar(n.id)">Borrar</n-button>
-            </n-space>
-          </template>
-        </n-thing>
-      </n-list-item>
-    </n-list>
-  </n-card>
+        </n-list-item>
+      </n-list>
+    </n-card>
+  </div>
 </template>
 
 <script setup>
-import axios from "axios";
-import { onMounted, ref } from "vue";
-import { usePage } from "@inertiajs/vue3";
-import { useMessageGlobal } from "@/composables/useMessageGlobal";
-import { NCard, NList, NListItem, NThing, NText, NButton, NSpace } from "naive-ui";
+import { usePage, router } from "@inertiajs/vue3";
+import { NCard, NEmpty, NList, NListItem, NButton } from "naive-ui";
 
 const page = usePage();
-const message = useMessageGlobal();
-const notifications = ref(page.props.auth.user.invitaciones_recibidas ?? []);
+const notificaciones = page.props.auth.user.notifications || [];
 
-function formatTipo(tipo) {
-  switch (tipo) {
-    case "invitacion":
-      return "Invitación a sucursal";
-    case "stock":
-      return "Stock bajo";
-    case "cuenta":
-      return "Cuenta por pagar";
-    default:
-      return "Notificación";
-  }
+function aceptar(token) {
+  router.visit(`/invitaciones/aceptar/${token}`);
 }
 
-function visitar(url) {
-  window.location.href = url;
+function rechazar(token) {
+  router.post(`/invitaciones/rechazar/${token}`);
 }
 
-function borrar(id) {
-  axios.delete(`/notificaciones/${id}`).then(() => {
-    notifications.value = notifications.value.filter((n) => n.id !== id);
-    message.success("Notificación eliminada");
-  });
+function formatFecha(dateStr) {
+  return new Date(dateStr).toLocaleString();
 }
-
-onMounted(() => console.log(page.props.auth));
 </script>

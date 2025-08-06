@@ -34,16 +34,15 @@ class UserController extends Controller
 
         $user = User::create($validated);
 
-        // Verificar si tiene invitaciones pendientes
-        $invitaciones = BranchInvitation::where('email', $user->email)
-            ->where('estado', 'pendiente')
-            ->get();
-
-        foreach ($invitaciones as $inv) {
-            $user->branches()->attach($inv->branch_id, ['role' => 'vendedor']);
-            $inv->estado = 'aceptada';
-            $inv->save();
+        $invitacion = BranchInvitation::where('email', $user->email)->where('estado', 'pendiente')->first();
+        if ($invitacion) {
+            $user->update([
+                'branch_id' => $invitacion->branch_id,
+                'role' => 'vendedor'
+            ]);
+            $invitacion->update(['estado' => 'aceptada']);
         }
+
 
         // Auth::login($user);
 
